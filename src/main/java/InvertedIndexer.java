@@ -86,7 +86,8 @@ public class InvertedIndexer {
                 }
 
                 if (sumOfFIle > 0) {
-                    Text wordInfo=new Text(currentWord+"\t"+sumOfWord/sumOfFIle+",");
+                    DecimalFormat df=new DecimalFormat("#####0.00");
+                    Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
                     context.write(wordInfo, new Text(out.toString()));
                 }
                 fileInfoList = new ArrayList<String>();
@@ -98,8 +99,7 @@ public class InvertedIndexer {
         /*
             对最后一个 word 进行输出
          */
-        public void cleanup(Context context) throws IOException,
-                InterruptedException {
+        public void cleanup(Context context) throws IOException, InterruptedException {
             StringBuilder out = new StringBuilder();
             double sumOfFIle = 0, sumOfWord=0;
             for (String p : fileInfoList) {
