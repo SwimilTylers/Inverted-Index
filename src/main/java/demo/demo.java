@@ -23,7 +23,7 @@ public class demo {
         }
 
         // init job
-        Job job = Job.getInstance(conf,"Reverse index");
+        Job job = Job.getInstance(conf,"Inverted index");
         job.setJarByClass(demo.class);
         job.setMapperClass(InvertedIndexMapper.class);
         job.setCombinerClass(SumCombiner.class);
