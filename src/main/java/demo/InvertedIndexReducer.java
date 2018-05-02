@@ -28,11 +28,12 @@ public class InvertedIndexReducer extends Reducer<Text, IntWritable, Text, Text>
             StringBuilder out = new StringBuilder();
             long count = 0;
             for (String p : postingList){
-                out.append(p);
+                out.append("\n\t"+p);
                 out.append(";");
                 count += Long.parseLong(p.substring(p.indexOf(",") + 1, p.indexOf(">")));
             }
-            out.append("<total,"+count+">.");
+            String average = String.format("average=%.2f",((double) count)/postingList.size());
+            out.append("\n\t[total="+count+"/"+postingList.size()+","+average+"].");
             if (count > 0)
                 context.write(CurrentItem, new Text(out.toString()));
             postingList.clear();
