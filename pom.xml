@@ -6,7 +6,7 @@
 
     <groupId>2018st25</groupId>
     <artifactId>InvertedIndexer</artifactId>
-    <version>1.180502.2133</version>
+    <version>1.0.2</version>
 
     <dependencies>
         <dependency>
