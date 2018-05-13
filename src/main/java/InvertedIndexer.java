@@ -1,5 +1,8 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.*;
+import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -7,7 +10,6 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 
@@ -63,15 +65,37 @@ public class InvertedIndexer {
     }
 
     public static class InvertedIndexerReducer extends Reducer<Text, IntWritable, Text, Text>{
-        static String currentWord =" ";                                    // 存储当前reduce方法的word
-        // 存储当前word相关的文件信息 格式 文件名:出现次数										
-		static List<String> fileInfoList = new ArrayList<String>();		   
+        static TableName tableName = null;
+        static Connection connection = null;
+        static String currentWord =" ";  // 存储当前reduce方法的word
+		static List<String> fileInfoList = new ArrayList<String>();  // 存储当前word相关的文件信息 格式 文件名:出现次数
+
+		public void setup(Context context) throws IOException {
+		    connection = ConnectionFactory.createConnection(context.getConfiguration());
+            Admin hBaseAdmin = connection.getAdmin();
+
+            tableName = TableName.valueOf(new String("hehe"));
+
+            // drop out-of-date table
+            if (hBaseAdmin.tableExists(tableName)){
+                hBaseAdmin.disableTable(tableName);
+                hBaseAdmin.deleteTable(tableName);
+            }
+
+            // table definition
+            HTableDescriptor tableDescriptorBuilder = new HTableDescriptor(TableName.valueOf("hehe"));
+            tableDescriptorBuilder.addFamily(new HColumnDescriptor("f1"));
+            hBaseAdmin.createTable(tableDescriptorBuilder);
+        }
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
             
             String word = key.toString().split("#")[0];                     // 获取当前key中的word
             String filename = key.toString().split("#")[1];                 // 获取当前key中的filename
+
+            //  establish connection
+            Table hTable = connection.getTable(tableName);
 			
 			// 统计当前单词在当前文件中出现的总次数
 			int sumOfSingleFile = 0;
@@ -95,7 +119,11 @@ public class InvertedIndexer {
 
                 DecimalFormat df=new DecimalFormat("#####0.00");     // 格式化词频输出，保留两位小数
                 Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
-                
+
+                // raise HTable-put issue
+                Put put = new Put(Bytes.toBytes(currentWord));
+                put.add(Bytes.toBytes("frequent"), Bytes.toBytes("hh"));
+
 				context.write(wordInfo, new Text(out.toString()));
                 
 				// 清空fileInfoList
@@ -131,8 +159,8 @@ public class InvertedIndexer {
     }
 
     public static void main(String[] args) throws Exception{
-        Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf,"invert index");
+        Configuration conf = HBaseConfiguration.create();
+        Job job = Job.getInstance(conf,"inverted index");
         
 		job.setJarByClass(InvertedIndexer.class);
 		job.setMapperClass(InvertedIndexerMapper.class);
