@@ -1,180 +1,63 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
+import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
-import java.io.IOException;
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringTokenizer;
 
-public class InvertedIndexer {
-
-    public static class InvertedIndexerMapper extends Mapper<Object,Text,Text,IntWritable> {
-        @Override
-        public void map(Object key, Text value, Context context) throws IOException,InterruptedException{
-            FileSplit fileSplit = (FileSplit) context.getInputSplit();
-            String filename = fileSplit.getPath().getName();
-            filename=filename.substring(0,filename.length()-14);          // 去除后缀
-
-            Text word = new Text();
-            StringTokenizer itr = new StringTokenizer(value.toString());  // 获取文件中所有的单词
-
-            while (itr.hasMoreTokens()){
-                word.set(itr.nextToken()+"#"+filename);                   // 使用 # 将word 与 filename 分开
-                context.write(word,new IntWritable(1));                   // 每个单词频度设为1
-            }
-        }
-    }
-
-    /*
-        将key值相同的项合并，减少网络开销
-     */
-    public static class SumCombiner extends Reducer<Text,IntWritable,Text,IntWritable>{
-        @Override
-        public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException, InterruptedException{
-            int sum = 0;
-            for (IntWritable val : values){
-                sum += val.get();                                          // 对出现次数求和
-            }
-            context.write(key,new IntWritable(sum));
-        }
-    }
-
-    /*
-        以 word 为关键字进行划分
-     */
-    public static class InvertedIndexerPartitioner extends HashPartitioner<Text, IntWritable> {
-        @Override
-        public int getPartition(Text key, IntWritable value, int numPartitions){
-            String word = key.toString().split("#")[0];                    // 以 # 划分，获取第一个值 ： 即 word
-            return super.getPartition(new Text(word),value,numPartitions); // 以 word 作为key调用父类方法
-        }
-
-    }
-
-    public static class InvertedIndexerReducer extends Reducer<Text, IntWritable, Text, Text>{
-        static TableName tableName = null;
-        static Connection connection = null;
-        static String currentWord =" ";  // 存储当前reduce方法的word
-		static List<String> fileInfoList = new ArrayList<String>();  // 存储当前word相关的文件信息 格式 文件名:出现次数
-
-		public void setup(Context context) throws IOException {
-		    connection = ConnectionFactory.createConnection(context.getConfiguration());
-            Admin hBaseAdmin = connection.getAdmin();
-
-            tableName = TableName.valueOf(new String("hehe"));
-
-            // drop out-of-date table
-            if (hBaseAdmin.tableExists(tableName)){
-                hBaseAdmin.disableTable(tableName);
-                hBaseAdmin.deleteTable(tableName);
-            }
-
-            // table definition
-            HTableDescriptor tableDescriptorBuilder = new HTableDescriptor(TableName.valueOf("hehe"));
-            tableDescriptorBuilder.addFamily(new HColumnDescriptor("f1"));
-            hBaseAdmin.createTable(tableDescriptorBuilder);
-        }
-
-        public void reduce(Text key, Iterable<IntWritable> values, Context context)
-                throws IOException, InterruptedException {
-            
-            String word = key.toString().split("#")[0];                     // 获取当前key中的word
-            String filename = key.toString().split("#")[1];                 // 获取当前key中的filename
-
-            //  establish connection
-            Table hTable = connection.getTable(tableName);
-			
-			// 统计当前单词在当前文件中出现的总次数
-			int sumOfSingleFile = 0;
-            for (IntWritable val : values) {
-                sumOfSingleFile += val.get();
-            }
-            String fileInfo = (filename + ":" + sumOfSingleFile);
-			
-			// 如果获取的新word不等于currentWord,则将currentWord的信息输出，并清空fileInfoList
-            if (!currentWord.equals(word) && !currentWord.equals(" ")) {
-                StringBuilder out = new StringBuilder();
-                
-				// sumOfFIle统计包含该词语的文档数， sumOfWord统计该词语在全部文档中出现的频数总和
-				double sumOfFIle = 0, sumOfWord=0;
-                for (String p : fileInfoList) {
-                    out.append(p);
-                    out.append(";");
-                    sumOfWord += Long.parseLong(p.substring(p.indexOf(":") + 1));
-                    sumOfFIle++;
-                }
-
-                DecimalFormat df=new DecimalFormat("#####0.00");     // 格式化词频输出，保留两位小数
-                Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
-
-                // raise HTable-put issue
-                Put put = new Put(Bytes.toBytes(currentWord));
-                put.add(Bytes.toBytes("frequent"), Bytes.toBytes("hh"));
-
-				context.write(wordInfo, new Text(out.toString()));
-                
-				// 清空fileInfoList
-                fileInfoList = new ArrayList<String>();
-            }
-			
-			// 更新当前word，并将fileInfo添加到fileInfoList中
-            currentWord = word;
-            fileInfoList.add(fileInfo);
-        }
-
-        /*
-            对最后一个 word 进行输出
-			与reduce中的输出过程一致
-         */
-        public void cleanup(Context context) throws IOException, InterruptedException {
-            StringBuilder out = new StringBuilder();
-            double sumOfFIle = 0, sumOfWord=0;
-            for (String p : fileInfoList) {
-                out.append(p);
-                out.append(";");
-                sumOfWord += Long.parseLong(p.substring(p.indexOf(":") + 1));
-                sumOfFIle++;
-            }
-
-            if (sumOfFIle > 0) {
-                DecimalFormat df=new DecimalFormat("#####0.00");
-                Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
-                context.write(wordInfo, new Text(out.toString()));
-            }
-        }
-
-    }
-
+public class InvertedIndexer extends Configured {
     public static void main(String[] args) throws Exception{
+        /*
+        * set up HBase connection
+        * */
         Configuration conf = HBaseConfiguration.create();
-        Job job = Job.getInstance(conf,"inverted index");
-        
-		job.setJarByClass(InvertedIndexer.class);
-		job.setMapperClass(InvertedIndexerMapper.class);
-        job.setCombinerClass(SumCombiner.class);
-        job.setPartitionerClass(InvertedIndexerPartitioner.class);
-        job.setReducerClass(InvertedIndexerReducer.class);
+        Connection connection = ConnectionFactory.createConnection(conf);
+        Admin hBaseAdmin = connection.getAdmin();
 
+        TableName tableName = TableName.valueOf(new String("term frequency"));
+
+        // drop out-of-date table
+        if (hBaseAdmin.tableExists(tableName)){
+            hBaseAdmin.disableTable(tableName);
+            hBaseAdmin.deleteTable(tableName);
+        }
+
+        // table definition
+        TableDescriptorBuilder tableDescriptorBuilder = TableDescriptorBuilder.newBuilder(TableName.valueOf("term"));
+        List<ColumnFamilyDescriptor> columns = new ArrayList<ColumnFamilyDescriptor>();
+        columns.add(ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("properties")).build());
+        tableDescriptorBuilder.setColumnFamilies(columns);
+        hBaseAdmin.createTable(tableDescriptorBuilder.build());
+
+        hBaseAdmin.close();
+
+        Job job = Job.getInstance(conf,"inverted index + HBase & HDFS");
+		job.setJarByClass(InvertedIndexer.class);
+
+        job.setMapperClass(InvertedIndexerMapper.class);
         job.setMapOutputKeyClass(Text.class);
         job.setMapOutputValueClass(IntWritable.class);
 
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
+        job.setCombinerClass(SumCombiner.class);
+        job.setPartitionerClass(InvertedIndexerPartitioner.class);
+
+
+        TableMapReduceUtil.initTableReducerJob("term frequency", InvertedIndexerReducer.class, job);
+
         FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        MultipleOutputs.addNamedOutput(job, "Inverted-Index", TextOutputFormat.class, Text.class, Text.class);
+        FileOutputFormat.setOutputPath(job, TableOutputFormat);
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
