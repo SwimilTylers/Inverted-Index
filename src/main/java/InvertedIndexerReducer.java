@@ -60,7 +60,7 @@ public class InvertedIndexerReducer extends TableReducer<Text, IntWritable, Immu
             context.write(new ImmutableBytesWritable(Bytes.toBytes(currentWord)), put);
 
             // multipleOutput: HDFS file
-            multipleOutputs.write(channel, new Text(currentWord+", "), new Text(out.toString()), filePath);
+            //multipleOutputs.write(channel, new Text(currentWord+", "), new Text(out.toString()), filePath);
 
             // 清空fileInfoList
             fileInfoList = new ArrayList<String>();
