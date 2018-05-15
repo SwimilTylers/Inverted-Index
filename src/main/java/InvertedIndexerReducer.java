@@ -15,14 +15,19 @@ public class InvertedIndexerReducer extends TableReducer<ImmutableBytesWritable,
     private MultipleOutputs<Text, Text> multipleOutputs = null;
     private String currentWord =" ";  // 存储当前reduce方法的word
     private List<String> fileInfoList = new ArrayList<String>();  // 存储当前word相关的文件信息 格式 文件名:出现次数
+    private String channel = null;
+    private String filePath = null;
 
     public void setup(Context context) throws IOException {
         multipleOutputs = new MultipleOutputs(context);
+        channel = context.getConfiguration().get("HDFSOutputFileName");
+        filePath = context.getConfiguration().get("HDFSOutputPath");
     }
 
-    public void reduce(ImmutableBytesWritable key, Iterable<IntWritable> values, Context context)
+    public void reduce(ImmutableBytesWritable raw_key, Iterable<IntWritable> values, Context context)
             throws IOException, InterruptedException {
 
+        String key = Bytes.toString(raw_key.get());
         String word = key.toString().split("#")[0];                     // 获取当前key中的word
         String filename = key.toString().split("#")[1];                 // 获取当前key中的filename
 
@@ -51,11 +56,11 @@ public class InvertedIndexerReducer extends TableReducer<ImmutableBytesWritable,
 
             // majorOutput: HBase table
             Put put = new Put(Bytes.toBytes(currentWord));
-            put.addColumn(Bytes.toBytes("properties"), Bytes.toBytes("frequent"), Bytes.toBytes(sumOfWord/sumOfFIle));
+            put.addColumn(Bytes.toBytes("properties"), Bytes.toBytes("frequent"), Bytes.toBytes(df.format(sumOfWord/sumOfFIle)));
             context.write(new ImmutableBytesWritable(Bytes.toBytes(currentWord)), put);
 
             // multipleOutput: HDFS file
-            multipleOutputs.write(context.getConfiguration().get("HDFSOutputFileName"), new Text(currentWord+", "), new Text(out.toString()), context.getConfiguration().get("HDFSOutputPath"));
+            //multipleOutputs.write(channel, new Text(currentWord+", "), new Text(out.toString()), filePath);
 
             // 清空fileInfoList
             fileInfoList = new ArrayList<String>();
@@ -86,13 +91,12 @@ public class InvertedIndexerReducer extends TableReducer<ImmutableBytesWritable,
 
             // majorOutput: HBase table
             Put put = new Put(Bytes.toBytes(currentWord));
-            put.addColumn(Bytes.toBytes("properties"), Bytes.toBytes("frequent"), Bytes.toBytes(sumOfWord/sumOfFIle));
+            put.addColumn(Bytes.toBytes("properties"), Bytes.toBytes("frequent"), Bytes.toBytes(df.format(sumOfWord/sumOfFIle)));
             context.write(new ImmutableBytesWritable(Bytes.toBytes(currentWord)), put);
 
             // multipleOutput: HDFS file
-            multipleOutputs.write(context.getConfiguration().get("HDFSOutputFileName"), new Text(currentWord+", "), new Text(out.toString()), context.getConfiguration().get("HDFSOutputPath"));
+            //multipleOutputs.write(channel, new Text(currentWord+", "), new Text(out.toString()), filePath);
         }
-        multipleOutputs.close();
     }
 
 }
