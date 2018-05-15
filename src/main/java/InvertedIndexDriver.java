@@ -10,6 +10,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Partitioner;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
@@ -56,17 +58,20 @@ public class InvertedIndexDriver {
 
         // mapper from HDFS file
         job.setMapperClass(InvertedIndexerMapper.class);
-        job.setMapOutputKeyClass(ImmutableBytesWritable.class);
+        job.setMapOutputKeyClass(Text.class);
         job.setMapOutputValueClass(IntWritable.class);
 
-        // intermediate layers
-        //job.setCombinerClass(SumCombiner.class);
-
         // reducer for HBase Table
-        TableMapReduceUtil.initTableReducerJob(tableName.getNameAsString(), InvertedIndexerReducer.class, job, ModifiedHRegionPartitioner.class);
+        TableMapReduceUtil.initTableReducerJob(tableName.getNameAsString(), InvertedIndexerReducer.class, job);
         job.setOutputKeyClass(ImmutableBytesWritable.class);
         job.setOutputValueClass(Put.class);
 
+        // intermediate layers
+        /*
+        job.setCombinerClass((Class<? extends Reducer>) Class.forName("SumCombiner"));
+        job.setPartitionerClass((Class<? extends Partitioner>) Class.forName("ModifiedHRegionPartitioner"));
+        TableMapReduceUtil.addDependencyJars(job);
+        */
         // multipleOutput: HDFS file
         MultipleOutputs.addNamedOutput(job, conf.get("HDFSOutputFileName"), TextOutputFormat.class, Text.class, Text.class);
 

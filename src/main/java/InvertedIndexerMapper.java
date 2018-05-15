@@ -8,7 +8,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
-public class InvertedIndexerMapper extends Mapper<Object,Text,ImmutableBytesWritable,IntWritable> {
+public class InvertedIndexerMapper extends Mapper<Object,Text,Text,IntWritable> {
     @Override
     public void map(Object key, Text value, Context context) throws IOException,InterruptedException{
         FileSplit fileSplit = (FileSplit) context.getInputSplit();
@@ -19,7 +19,7 @@ public class InvertedIndexerMapper extends Mapper<Object,Text,ImmutableBytesWrit
 
         while (itr.hasMoreTokens()){
             String word = itr.nextToken()+"#"+filename;                   // 使用 # 将word 与 filename 分开
-            context.write(new ImmutableBytesWritable(Bytes.toBytes(word)),new IntWritable(1));                   // 每个单词频度设为1
+            context.write(new Text(word),new IntWritable(1));                   // 每个单词频度设为1
         }
     }
 }
