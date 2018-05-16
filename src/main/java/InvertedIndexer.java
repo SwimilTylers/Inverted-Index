@@ -1,5 +1,9 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -14,7 +18,6 @@ import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.StringTokenizer;
 
@@ -86,6 +89,13 @@ public class InvertedIndexer {
                 if (sumOfFIle > 0) {
                     Text wordInfo=new Text(currentWord+"\t"+sumOfWord/sumOfFIle+",");
                     context.write(wordInfo, new Text(out.toString()));
+
+                    //add to hbase
+                    try {
+                        addData("Wuxia", currentWord.toString(), "value", "num", "" + (sumOfWord / sumOfFIle));
+                    }catch(Exception e){
+                        System.out.println("reduce: error in add to hbase");
+                    }
                 }
                 fileInfoList = new ArrayList<String>();
             }
@@ -114,6 +124,22 @@ public class InvertedIndexer {
         }
 
     }
+
+    private static void addData(String tableName,String rowKey,String family,String qualifier, String value) throws Exception{
+        Configuration conf = HBaseConfiguration.create();
+        Connection connection = ConnectionFactory.createConnection(conf);
+
+        try{
+            Table table = connection.getTable(TableName.valueOf(tableName));
+            Put put = new Put(Bytes.toBytes(rowKey));
+            put.addColumn(Bytes.toBytes(family),Bytes.toBytes(qualifier),Bytes.toBytes(value));
+            table.put(put);
+        }catch(Exception e){
+            e.printStackTrace();
+            System.out.println("addData error!");
+        }
+    }
+
 
     public static void main(String[] args) throws Exception{
         Configuration conf = new Configuration();
