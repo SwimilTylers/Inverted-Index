@@ -31,11 +31,11 @@ public class InvertedIndexer {
             filename=filename.substring(0,filename.length()-14);          // 去除后缀
 
             Text word = new Text();
-            StringTokenizer itr = new StringTokenizer(value.toString());
+            StringTokenizer itr = new StringTokenizer(value.toString());  // 获取文件中所有的单词
 
             while (itr.hasMoreTokens()){
                 word.set(itr.nextToken()+"#"+filename);                   // 使用 # 将word 与 filename 分开
-                context.write(word,new IntWritable(1));
+                context.write(word,new IntWritable(1));                   // 每个单词频度设为1
             }
         }
     }
@@ -48,7 +48,7 @@ public class InvertedIndexer {
         public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException, InterruptedException{
             int sum = 0;
             for (IntWritable val : values){
-                sum += val.get();
+                sum += val.get();                                          // 对出现次数求和
             }
             context.write(key,new IntWritable(sum));
         }
@@ -60,35 +60,42 @@ public class InvertedIndexer {
     public static class InvertedIndexerPartitioner extends HashPartitioner<Text, IntWritable> {
         @Override
         public int getPartition(Text key, IntWritable value, int numPartitions){
-            String word = key.toString().split("#")[0];
-            return super.getPartition(new Text(word),value,numPartitions);
+            String word = key.toString().split("#")[0];                    // 以 # 划分，获取第一个值 ： 即 word
+            return super.getPartition(new Text(word),value,numPartitions); // 以 word 作为key调用父类方法
         }
 
     }
 
     public static class InvertedIndexerReducer extends Reducer<Text, IntWritable, Text, Text>{
-        static String currentWord =" ";
-        static List<String> fileInfoList = new ArrayList<String>();
+        static String currentWord =" ";                                    // 存储当前reduce方法的word
+        // 存储当前word相关的文件信息 格式 文件名:出现次数										
+		static List<String> fileInfoList = new ArrayList<String>();		   
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
-            int sumOfSingleFile = 0;
-            String word = key.toString().split("#")[0];
-            String filename = key.toString().split("#")[1];
+            
+            String word = key.toString().split("#")[0];                     // 获取当前key中的word
+            String filename = key.toString().split("#")[1];                 // 获取当前key中的filename
+			
+			// 统计当前单词在当前文件中出现的总次数
+			int sumOfSingleFile = 0;
             for (IntWritable val : values) {
                 sumOfSingleFile += val.get();
             }
-            Text fileInfo = new  Text(filename + ":" + sumOfSingleFile);
+            String fileInfo = (filename + ":" + sumOfSingleFile);
+			
+			// 如果获取的新word不等于currentWord,则将currentWord的信息输出，并清空fileInfoList
             if (!currentWord.equals(word) && !currentWord.equals(" ")) {
                 StringBuilder out = new StringBuilder();
-                double sumOfFIle = 0, sumOfWord=0;
+                
+				// sumOfFIle统计包含该词语的文档数， sumOfWord统计该词语在全部文档中出现的频数总和
+				double sumOfFIle = 0, sumOfWord=0;
                 for (String p : fileInfoList) {
                     out.append(p);
                     out.append(";");
                     sumOfWord += Long.parseLong(p.substring(p.indexOf(":") + 1));
                     sumOfFIle++;
                 }
-
                 if (sumOfFIle > 0) {
                     DecimalFormat df=new DecimalFormat("#####0.00");
                     Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
@@ -103,12 +110,15 @@ public class InvertedIndexer {
                 }
                 fileInfoList = new ArrayList<String>();
             }
+			
+			// 更新当前word，并将fileInfo添加到fileInfoList中
             currentWord = word;
-            fileInfoList.add(fileInfo.toString());
+            fileInfoList.add(fileInfo);
         }
 
         /*
             对最后一个 word 进行输出
+			与reduce中的输出过程一致
          */
         public void cleanup(Context context) throws IOException, InterruptedException {
             StringBuilder out = new StringBuilder();
@@ -148,10 +158,9 @@ public class InvertedIndexer {
     public static void main(String[] args) throws Exception{
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf,"invert index");
-        job.setJarByClass(InvertedIndexer.class);
-        job.setInputFormatClass(TextInputFormat.class);
-
-        job.setMapperClass(InvertedIndexerMapper.class);
+        
+		job.setJarByClass(InvertedIndexer.class);
+		job.setMapperClass(InvertedIndexerMapper.class);
         job.setCombinerClass(SumCombiner.class);
         job.setPartitionerClass(InvertedIndexerPartitioner.class);
         job.setReducerClass(InvertedIndexerReducer.class);
