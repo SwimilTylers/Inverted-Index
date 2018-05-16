@@ -15,15 +15,15 @@ import org.apache.hadoop.util.Tool;
 public class CrawlDriver extends Configured implements Tool {
     public int run(String[] args) throws Exception {
         Configuration conf = HBaseConfiguration.create();
-        conf.set("family", "properties");
+        conf.set("family", args[1]);
 
         Job job = new Job(conf, "From HBase to HDFS");
         job.setJarByClass(CrawlDriver.class);
 
-        TableMapReduceUtil.initTableMapperJob("TermFrequency", new Scan(), FromHBaseMapper.class, Text.class, DoubleWritable.class, job);
+        TableMapReduceUtil.initTableMapperJob(args[0], new Scan(), FromHBaseMapper.class, Text.class, DoubleWritable.class, job);
         job.setReducerClass(ToHDFSReducer.class);
 
-        FileOutputFormat.setOutputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[2]));
 
         return job.waitForCompletion(true)?0:1;
     }

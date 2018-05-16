@@ -8,7 +8,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 import java.io.IOException;
 import java.util.*;
-
+@Deprecated
 public class InvertedIndexMapper extends Mapper<LongWritable,Text,Text,IntWritable> {
     static Set<String> avoid = new HashSet<String>(Arrays.asList(new String[]{
         "プ", "フ", "ハ", "ネ", "ヌ", "ツ", "チ", "ゼ", "シ", "ザ", "サ", "ゲ", "ケ", "イ",

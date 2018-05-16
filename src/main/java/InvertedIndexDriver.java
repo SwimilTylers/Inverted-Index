@@ -1,4 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.TableName;
@@ -10,17 +11,22 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Partitioner;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.Tool;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class InvertedIndexDriver {
+@Deprecated
+public class InvertedIndexDriver extends Configured implements Tool {
     public static void main(String[] args) throws Exception{
+        InvertedIndexDriver driver = new InvertedIndexDriver();
+        System.exit(driver.run(args));
+    }
+
+    public int run(String[] args) throws Exception {
         /*
          * set up HBase connection
          * */
@@ -62,13 +68,13 @@ public class InvertedIndexDriver {
         job.setMapOutputValueClass(IntWritable.class);
 
         // reducer for HBase Table
-        TableMapReduceUtil.initTableReducerJob(tableName.getNameAsString(), InvertedIndexerReducer.class, job);
+        TableMapReduceUtil.initTableReducerJob(tableName.getNameAsString(), InvertedIndexerReducer.class, job/*, demo.NewPartitioner.class*/);
         job.setOutputKeyClass(ImmutableBytesWritable.class);
         job.setOutputValueClass(Put.class);
 
         // intermediate layers
+        //job.setCombinerClass(demo.SumCombiner.class);
         /*
-        job.setCombinerClass((Class<? extends Reducer>) Class.forName("SumCombiner"));
         job.setPartitionerClass((Class<? extends Partitioner>) Class.forName("ModifiedHRegionPartitioner"));
         TableMapReduceUtil.addDependencyJars(job);
         */
@@ -77,7 +83,6 @@ public class InvertedIndexDriver {
 
         // majorOutput: HBase table
         job.setOutputFormatClass(TableOutputFormat.class);
-
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        return job.waitForCompletion(true) ? 0 : 1;
     }
 }

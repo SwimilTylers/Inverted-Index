@@ -21,7 +21,7 @@ public class FromHBaseMapper extends TableMapper<Text, DoubleWritable> {
     @Override
     public void map(ImmutableBytesWritable key, Result values, Context context) throws IOException, InterruptedException {
         for (Map.Entry<byte[], byte[]> entry:values.getFamilyMap(family.getBytes()).entrySet()){
-            double frequency = Bytes.toDouble(entry.getValue());
+            double frequency = Double.parseDouble(Bytes.toString(entry.getValue()));
             context.write(new Text(Bytes.toString(key.get())), new DoubleWritable(frequency));
         }
     }

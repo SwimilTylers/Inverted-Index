@@ -8,6 +8,7 @@ import java.io.IOException;
 /*
         将key值相同的项合并，减少网络开销
      */
+@Deprecated
 public class SumCombiner extends Reducer<Text,IntWritable,Text,IntWritable> {
     @Override
     public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException, InterruptedException{

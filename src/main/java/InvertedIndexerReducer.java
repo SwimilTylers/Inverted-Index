@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
-
+@Deprecated
 public class InvertedIndexerReducer extends TableReducer<Text, IntWritable, ImmutableBytesWritable> {
     private MultipleOutputs<Text, Text> multipleOutputs = null;
     private String currentWord =" ";  // 存储当前reduce方法的word
@@ -19,7 +19,7 @@ public class InvertedIndexerReducer extends TableReducer<Text, IntWritable, Immu
     private String filePath = null;
 
     public void setup(Context context) throws IOException {
-        multipleOutputs = new MultipleOutputs(context);
+        //multipleOutputs = new MultipleOutputs<Text, Text>(context);
         channel = context.getConfiguration().get("HDFSOutputFileName");
         filePath = context.getConfiguration().get("HDFSOutputPath");
     }
@@ -98,6 +98,7 @@ public class InvertedIndexerReducer extends TableReducer<Text, IntWritable, Immu
             // multipleOutput: HDFS file
             //multipleOutputs.write(channel, new Text(currentWord+", "), new Text(out.toString()), filePath);
         }
+        multipleOutputs.close();
     }
 
 }

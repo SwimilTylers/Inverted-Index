@@ -7,7 +7,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
+@Deprecated
 public class InvertedIndexReducer extends Reducer<Text, IntWritable, Text, Text> {
     private Text word1 = new Text();
     private Text word2 = new Text();

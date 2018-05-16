@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 /*
         以 word 为关键字进行划分
      */
+@Deprecated
 public class InvertedIndexerPartitioner extends HashPartitioner<Text, IntWritable> {
     @Override
     public int getPartition(Text key, IntWritable value, int numPartitions){

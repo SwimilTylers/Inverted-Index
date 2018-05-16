@@ -7,7 +7,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 import java.io.IOException;
 import java.util.StringTokenizer;
-
+@Deprecated
 public class InvertedIndexerMapper extends Mapper<Object,Text,Text,IntWritable> {
     @Override
     public void map(Object key, Text value, Context context) throws IOException,InterruptedException{
