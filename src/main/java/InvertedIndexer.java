@@ -1,5 +1,9 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -92,13 +96,18 @@ public class InvertedIndexer {
                     sumOfWord += Long.parseLong(p.substring(p.indexOf(":") + 1));
                     sumOfFIle++;
                 }
+                if (sumOfFIle > 0) {
+                    DecimalFormat df=new DecimalFormat("#####0.00");
+                    Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
+                    context.write(wordInfo, new Text(out.toString()));
 
-                DecimalFormat df=new DecimalFormat("#####0.00");     // 格式化词频输出，保留两位小数
-                Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
-                
-				context.write(wordInfo, new Text(out.toString()));
-                
-				// 清空fileInfoList
+                    //add to hbase
+                    try {
+                        addData("Wuxia", currentWord.toString(), "value", "num", "" + (sumOfWord / sumOfFIle));
+                    }catch(Exception e){
+                        System.out.println("reduce: error in add to hbase");
+                    }
+                }
                 fileInfoList = new ArrayList<String>();
             }
 			
@@ -129,6 +138,22 @@ public class InvertedIndexer {
         }
 
     }
+
+    private static void addData(String tableName,String rowKey,String family,String qualifier, String value) throws Exception{
+        Configuration conf = HBaseConfiguration.create();
+        Connection connection = ConnectionFactory.createConnection(conf);
+
+        try{
+            Table table = connection.getTable(TableName.valueOf(tableName));
+            Put put = new Put(Bytes.toBytes(rowKey));
+            put.addColumn(Bytes.toBytes(family),Bytes.toBytes(qualifier),Bytes.toBytes(value));
+            table.put(put);
+        }catch(Exception e){
+            e.printStackTrace();
+            System.out.println("addData error!");
+        }
+    }
+
 
     public static void main(String[] args) throws Exception{
         Configuration conf = new Configuration();
