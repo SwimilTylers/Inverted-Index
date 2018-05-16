@@ -6,7 +6,7 @@
 
     <groupId>2018st25</groupId>
     <artifactId>InvertedIndexer</artifactId>
-    <version>1.1.6</version>
+    <version>1.1.7</version>
 
     <build>
         <plugins>
@@ -30,11 +30,11 @@
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
-                    <archive>
+                    <!--archive>
                         <manifest>
                             <mainClass>InvertedIndexer</mainClass>
                         </manifest>
-                    </archive>
+                    </archive-->
                 </configuration>
                 <executions>
                     <execution>
