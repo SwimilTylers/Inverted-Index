@@ -69,14 +69,16 @@ public class InvertedIndexer {
     public static class InvertedIndexerReducer extends Reducer<Text, IntWritable, Text, Text>{
         static String currentWord =" ";                                    // 存储当前reduce方法的word
         // 存储当前word相关的文件信息 格式 文件名:出现次数										
-		static List<String> fileInfoList = new ArrayList<String>();		   
+		static List<String> fileInfoList = new ArrayList<String>();
+		static List<String> bufferedTerm = new ArrayList<>();
+		static List<String> bufferdFrequency = new ArrayList<>();
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
             
             String word = key.toString().split("#")[0];                     // 获取当前key中的word
             String filename = key.toString().split("#")[1];                 // 获取当前key中的filename
-			
+
 			// 统计当前单词在当前文件中出现的总次数
 			int sumOfSingleFile = 0;
             for (IntWritable val : values) {
@@ -102,11 +104,8 @@ public class InvertedIndexer {
                     context.write(wordInfo, new Text(out.toString()));
 
                     //add to hbase
-                    try {
-                        addData("Wuxia", currentWord.toString(), "value", "num", "" + (sumOfWord / sumOfFIle));
-                    }catch(Exception e){
-                        System.out.println("reduce: error in add to hbase");
-                    }
+                    bufferedTerm.add(currentWord);
+                    bufferdFrequency.add(df.format(sumOfWord / sumOfFIle));
                 }
                 fileInfoList = new ArrayList<String>();
             }
@@ -134,20 +133,37 @@ public class InvertedIndexer {
                 DecimalFormat df=new DecimalFormat("#####0.00");
                 Text wordInfo=new Text(currentWord+"\t"+df.format(sumOfWord/sumOfFIle)+",");
                 context.write(wordInfo, new Text(out.toString()));
+                bufferedTerm.add(currentWord);
+                bufferdFrequency.add(df.format(sumOfWord / sumOfFIle));
+            }
+
+            try {
+                addData("Wuxia",
+                        bufferedTerm.toArray(new String[bufferedTerm.size()]),
+                        "value", "num",
+                        bufferdFrequency.toArray(new String[bufferdFrequency.size()]));
+                bufferedTerm.clear();
+                bufferdFrequency.clear();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
     }
 
-    private static void addData(String tableName,String rowKey,String family,String qualifier, String value) throws Exception{
+    private static void addData(String tableName,String[] rowKey,String family,String qualifier, String[] value) throws Exception{
         Configuration conf = HBaseConfiguration.create();
         Connection connection = ConnectionFactory.createConnection(conf);
 
         try{
             Table table = connection.getTable(TableName.valueOf(tableName));
-            Put put = new Put(Bytes.toBytes(rowKey));
-            put.addColumn(Bytes.toBytes(family),Bytes.toBytes(qualifier),Bytes.toBytes(value));
-            table.put(put);
+            List<Put> putlist = new ArrayList<>();
+            for (int i = 0; i < rowKey.length; i++) {
+                Put put = new Put(Bytes.toBytes(rowKey[i]));
+                put.addColumn(Bytes.toBytes(family),Bytes.toBytes(qualifier),Bytes.toBytes(value[i]));
+                putlist.add(put);
+            }
+            table.put(putlist);
         }catch(Exception e){
             e.printStackTrace();
             System.out.println("addData error!");
